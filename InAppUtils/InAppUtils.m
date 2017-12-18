@@ -45,14 +45,32 @@ RCT_EXPORT_MODULE()
             }
             case SKPaymentTransactionStatePurchased: {
                 NSString *key = RCTKeyForInstance(transaction.payment.productIdentifier);
+                NSDictionary *purchase = @{
+                                           @"transactionDate": @(transaction.transactionDate.timeIntervalSince1970 * 1000),
+                                           @"transactionIdentifier": transaction.transactionIdentifier,
+                                           @"productIdentifier": transaction.payment.productIdentifier,
+                                           @"transactionReceipt": [[transaction transactionReceipt] base64EncodedStringWithOptions:0]
+                                           };
                 RCTResponseSenderBlock callback = _callbacks[key];
                 if (callback) {
-                    NSDictionary *purchase = [self getPurchaseData:transaction];
+
                     callback(@[[NSNull null], purchase]);
                     [_callbacks removeObjectForKey:key];
                 } else {
                     RCTLogWarn(@"No callback registered for transaction with state purchased.");
                 }
+
+                NSString *jsonString =
+                [NSString
+                 stringWithFormat:@"{\"productIdentifier\":\"%@\",\"transactionIdentifier\":\"%@\",\"transactionReceipt\":\"%@\"}",
+                    purchase[@"productIdentifier"],
+                    purchase[@"transactionIdentifier"],
+                    purchase[@"transactionReceipt"]];
+
+                [[NSUserDefaults standardUserDefaults] setObject:jsonString
+                                                          forKey:@"inAppTransaction"];
+
+                [[NSUserDefaults standardUserDefaults] synchronize];
                 [[SKPaymentQueue defaultQueue] finishTransaction:transaction];
                 break;
             }
@@ -124,7 +142,7 @@ restoreCompletedTransactionsFailedWithError:(NSError *)error
                 callback(@[@"restore_failed"]);
                 break;
         }
-        
+
         [_callbacks removeObjectForKey:key];
     } else {
         RCTLogWarn(@"No callback registered for restore product request.");
@@ -252,7 +270,7 @@ RCT_EXPORT_METHOD(receiptData:(RCTResponseSenderBlock)callback)
         purchase[@"originalTransactionDate"] = @(originalTransaction.transactionDate.timeIntervalSince1970 * 1000);
         purchase[@"originalTransactionIdentifier"] = originalTransaction.transactionIdentifier;
     }
-    
+
     return purchase;
 }
 
